@@ -2,34 +2,48 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>CAQ 交互式排序台</title>
+    <title>CAQ 双重自我评估</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 </head>
 <body>
-    <h1>我的 CAQ 排序台</h1>
+    <div class="header-section">
+        <h1 id="main-title">第一阶段：真实的自我</h1>
+        <p id="main-desc" class="instruction">请根据您<strong>目前的真实情况</strong>，将以下 100 张卡片分配到 1-9 级中。<br><span style="color:#2563eb;">💡 小技巧：除了拖拽，您还可以<strong>右键点击卡片</strong>进行极速分发！</span></p>
+    </div>
     
-    <h2>发牌区</h2>
-    <div id="unsorted-area" class="card-container">
+    <div id="sorting-phase">
+        <h2>发牌区</h2>
+        <div id="unsorted-area" class="card-container"></div>
+
+        <h2>粗筛区 (无数量限制)</h2>
+        <div id="primary-board" class="board-container primary-board">
+            <div class="primary-column" id="primary-dislike"><div class="category-title">不符合我的</div></div>
+            <div class="primary-column" id="primary-neutral"><div class="category-title">中立 / 不确定</div></div>
+            <div class="primary-column" id="primary-like"><div class="category-title">符合我的</div></div>
         </div>
 
-    <h2>第一阶段：粗筛区 (无数量限制)</h2>
-    <div id="primary-board" class="board-container primary-board">
-        <div class="primary-column" id="primary-dislike">
-            <div class="category-title">不符合我的</div>
-        </div>
-        <div class="primary-column" id="primary-neutral">
-            <div class="category-title">中立 / 不确定</div>
-        </div>
-        <div class="primary-column" id="primary-like">
-            <div class="category-title">符合我的</div>
+        <h2>精细分类区 (9级强制正态分布)</h2>
+        <div id="sort-board" class="board-container"></div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <button id="submit-btn" class="action-btn">进入第二阶段：设定理想自我 ➡️</button>
         </div>
     </div>
-<div style="text-align: center; margin-bottom: 20px;">
-        <button id="export-btn" class="export-btn">💾 一键导出我的排序结果 (CSV)</button>
+
+    <div id="results-area" class="results-panel" style="display: none;">
+        <h2 style="color: #1e293b; margin-bottom: 20px;">您的 CAQ 深度剖面分析报告</h2>
+        <div class="chart-container"><canvas id="myChart"></canvas></div>
+        
+        <div class="result-box"><p><strong>✨ 真实 vs 理想自我 一致性：</strong> <span id="res-self" class="highlight-score"></span></p><p class="desc">得分越高，说明您越接纳现在的自己，内心冲突越小；反之可能暗示对现状不够满意。</p></div>
+        <div class="result-box"><p><strong>🌟 真实 vs 专家理想人格：</strong> <span id="res-ideal" class="highlight-score"></span></p><p class="desc">得分越高，说明心理健康度、社会适应能力和自我效能感越高。</p></div>
+        <div class="result-box"><p><strong>🎭 真实 vs 歇斯底里倾向：</strong> <span id="res-hys" class="highlight-score"></span></p><p class="desc">得分较高可能暗示近期情绪波动大、对他人关注的需求较高。</p></div>
+        <div class="result-box"><p><strong>🛡️ 真实 vs 偏执倾向：</strong> <span id="res-para" class="highlight-score"></span></p><p class="desc">得分较高可能暗示当前防备心较重、处于高压状态或较为敏感。</p></div>
+        
+        <button id="export-btn" class="action-btn" style="background-color: #3b82f6; margin-top: 25px;">💾 导出双重测评对比数据 (CSV)</button>
     </div>
-    <h2>第二阶段：精细分类区 (9级强制分布)</h2>
-    <div id="sort-board" class="board-container">
-        </div>
+
+    <div id="custom-context-menu" class="context-menu" style="display: none;"></div>
 
     <script src="script.js"></script>
 </body>
