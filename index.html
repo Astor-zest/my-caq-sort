@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>CAQ 交互式排序台</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>我的 CAQ 排序台</h1>
+    
+    <h2>发牌区</h2>
+    <div id="unsorted-area" class="card-container">
+        </div>
+
+    <h2>第一阶段：粗筛区 (无数量限制)</h2>
+    <div id="primary-board" class="board-container primary-board">
+        <div class="primary-column" id="primary-dislike">
+            <div class="category-title">不符合我的</div>
+        </div>
+        <div class="primary-column" id="primary-neutral">
+            <div class="category-title">中立 / 不确定</div>
+        </div>
+        <div class="primary-column" id="primary-like">
+            <div class="category-title">符合我的</div>
+        </div>
+    </div>
+<div style="text-align: center; margin-bottom: 20px;">
+        <button id="export-btn" class="export-btn">💾 一键导出我的排序结果 (CSV)</button>
+    </div>
+    <h2>第二阶段：精细分类区 (9级强制分布)</h2>
+    <div id="sort-board" class="board-container">
+        </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
