@@ -2,48 +2,209 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="通过加州 Q 分类完成真实自我与理想自我的双重评估，并获得结构化结果解读。">
     <title>CAQ 双重自我评估</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 </head>
 <body>
-    <div class="header-section">
-        <h1 id="main-title">第一阶段：真实的自我</h1>
-        <p id="main-desc" class="instruction">请根据您<strong>目前的真实情况</strong>，将以下 100 张卡片分配到 1-9 级中。<br><span style="color:#2563eb;">💡 小技巧：除了拖拽，您还可以<strong>右键点击卡片</strong>进行极速分发！</span></p>
+    <div class="page-shell">
+        <header class="app-header">
+            <div class="brand-row">
+                <a class="brand" href="#" aria-label="CAQ 自我探索首页">
+                    <span class="brand-mark" aria-hidden="true">Q</span>
+                    <span>
+                        <strong>CAQ 自我探索</strong>
+                        <small>California Adult Q-Sort</small>
+                    </span>
+                </a>
+                <span class="local-badge"><span class="status-dot" aria-hidden="true"></span>测评数据仅在当前设备处理</span>
+            </div>
+
+            <div class="hero-grid">
+                <div class="header-section">
+                    <p class="eyebrow">双重自我评估 · 100 项人格特质排序</p>
+                    <h1 id="main-title">第一阶段：真实的自我</h1>
+                    <p id="main-desc" class="instruction">请根据您<strong>目前的真实情况</strong>，将 100 张卡片分配到 1–9 级。先完成粗筛，再进入精细分类；也可以右键点击卡片快速移动。</p>
+                </div>
+
+                <ol class="phase-stepper" aria-label="测评进度">
+                    <li id="phase-step-1" class="phase-step is-active" aria-current="step">
+                        <span class="step-index">01</span>
+                        <span><strong>真实自我</strong><small>描述当下的你</small></span>
+                    </li>
+                    <li id="phase-step-2" class="phase-step">
+                        <span class="step-index">02</span>
+                        <span><strong>理想自我</strong><small>描述期待的你</small></span>
+                    </li>
+                    <li id="phase-step-3" class="phase-step">
+                        <span class="step-index">03</span>
+                        <span><strong>结果解读</strong><small>查看差异与关联</small></span>
+                    </li>
+                </ol>
+            </div>
+        </header>
+
+        <main>
+            <div id="sorting-phase" class="assessment-workspace">
+                <section class="surface overview-panel" aria-label="测评工具和完成进度">
+                    <div id="import-container" class="import-panel">
+                        <div class="tool-icon" aria-hidden="true">↥</div>
+                        <div class="tool-copy">
+                            <strong>继续上一次测评</strong>
+                            <span>导入此前导出的 CSV，在原有卡片位置上微调。</span>
+                        </div>
+                        <input type="file" id="csv-upload" accept=".csv,text/csv" hidden>
+                        <button id="import-btn" class="action-btn secondary-btn" type="button">导入 CSV</button>
+                    </div>
+
+                    <div class="progress-panel">
+                        <div class="progress-copy">
+                            <span>精细分类完成度</span>
+                            <strong><span id="assigned-total">0</span> / 100</strong>
+                        </div>
+                        <div id="distribution-progress" class="progress-track" role="progressbar" aria-label="精细分类完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <span class="progress-fill"></span>
+                        </div>
+                        <small>每一级达到规定数量后会自动标记完成。</small>
+                    </div>
+                </section>
+
+                <section class="workspace-section" aria-labelledby="deck-title">
+                    <div class="section-heading">
+                        <div><span class="section-number">01</span><div><h2 id="deck-title">发牌区</h2><p>从直觉出发，先把卡片放入下方三个粗筛区域。</p></div></div>
+                        <span class="section-hint">支持拖拽 · 右键快捷分发</span>
+                    </div>
+                    <div id="unsorted-area" class="card-container" aria-label="尚未分类的卡片"></div>
+                </section>
+
+                <section class="workspace-section" aria-labelledby="primary-title">
+                    <div class="section-heading">
+                        <div><span class="section-number">02</span><div><h2 id="primary-title">粗筛</h2><p>这里只做方向判断，暂时不限制数量。</p></div></div>
+                        <span class="section-hint">不符合 · 中立 · 符合</span>
+                    </div>
+                    <div id="primary-board" class="board-container primary-board">
+                        <div class="primary-column tone-cool" id="primary-dislike">
+                            <div class="category-title">不符合我的</div>
+                            <div class="category-desc">之后放入 1–3 级</div>
+                        </div>
+                        <div class="primary-column tone-neutral" id="primary-neutral">
+                            <div class="category-title">中立 / 不确定</div>
+                            <div class="category-desc">之后放入 4–6 级</div>
+                        </div>
+                        <div class="primary-column tone-warm" id="primary-like">
+                            <div class="category-title">符合我的</div>
+                            <div class="category-desc">之后放入 7–9 级</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="workspace-section fine-sort-section" aria-labelledby="fine-title">
+                    <div class="section-heading">
+                        <div><span class="section-number">03</span><div><h2 id="fine-title">精细分类</h2><p>按照固定数量完成 1–9 级分布，形成可比较的 Q 分类剖面。</p></div></div>
+                        <span class="section-hint">横向滚动查看全部等级</span>
+                    </div>
+                    <div id="sort-board" class="board-container" aria-label="1 到 9 级精细分类区域"></div>
+                </section>
+
+                <div class="submit-dock">
+                    <div><strong>完成本阶段后再继续</strong><span>请确认 100 张卡片均已进入精细分类区。</span></div>
+                    <button id="submit-btn" class="action-btn primary-btn" type="button">进入理想自我阶段 <span aria-hidden="true">→</span></button>
+                </div>
+            </div>
+
+            <section id="results-area" class="results-panel" style="display: none;" aria-labelledby="results-title">
+                <div class="results-header">
+                    <div>
+                        <p class="eyebrow">YOUR CAQ PROFILE</p>
+                        <h2 id="results-title">双重自我评估结果</h2>
+                        <p>以下相关系数描述您的真实自我与不同参照剖面的相似程度，用于自我探索，不等同于临床诊断。</p>
+                    </div>
+                    <span class="report-badge">测评已完成</span>
+                </div>
+
+                <div class="chart-surface">
+                    <div class="chart-heading"><strong>相关剖面概览</strong><span>Pearson r · 范围 −1 至 1</span></div>
+                    <div class="chart-container"><canvas id="myChart" aria-label="四项相关系数图表"></canvas></div>
+                </div>
+
+                <div class="metrics-grid">
+                    <article class="result-box metric-blue">
+                        <div class="metric-label"><span aria-hidden="true">01</span>真实 vs 理想自我</div>
+                        <strong id="res-self" class="highlight-score"></strong>
+                        <p class="desc">反映当下自我与个人期待的整体一致程度。</p>
+                    </article>
+                    <article class="result-box metric-green">
+                        <div class="metric-label"><span aria-hidden="true">02</span>真实 vs 专家理想人格</div>
+                        <strong id="res-ideal" class="highlight-score"></strong>
+                        <p class="desc">反映当前剖面与专家理想人格模板的相似程度。</p>
+                    </article>
+                    <article class="result-box metric-amber">
+                        <div class="metric-label"><span aria-hidden="true">03</span>真实 vs 歇斯底里参照</div>
+                        <strong id="res-hys" class="highlight-score"></strong>
+                        <p class="desc">仅表示与该参照剖面的结构相似度，不代表诊断。</p>
+                    </article>
+                    <article class="result-box metric-violet">
+                        <div class="metric-label"><span aria-hidden="true">04</span>真实 vs 偏执参照</div>
+                        <strong id="res-para" class="highlight-score"></strong>
+                        <p class="desc">仅表示与该参照剖面的结构相似度，不代表诊断。</p>
+                    </article>
+                </div>
+
+                <div class="report-actions">
+                    <div><strong>保存本次结果</strong><span>存档包含带时区的生成时间，可重新导入，也可用于后续时间序列分析。</span></div>
+                    <button id="export-btn" class="action-btn secondary-btn" type="button">下载 CSV 存档</button>
+                </div>
+
+                <section id="ai-analysis-section" class="ai-analysis-section" aria-labelledby="ai-title">
+                    <div class="ai-section-header">
+                        <div>
+                            <span class="ai-badge"><span class="spark" aria-hidden="true">✦</span> DEEPSEEK 分析助手</span>
+                            <h2 id="ai-title">从分数走向更完整的自我理解</h2>
+                            <p>AI 将综合极端特质、真实—理想差距及四项相关系数，生成分层、审慎且可行动的个性化解读。</p>
+                        </div>
+                        <div class="model-field">
+                            <label for="ai-model-select">分析模式</label>
+                            <select id="ai-model-select">
+                                <option value="deepseek-v4-pro">深度分析 · V4 Pro</option>
+                                <option value="deepseek-v4-flash">快速分析 · V4 Flash</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="api-key-panel">
+                        <label for="api-key-input">DeepSeek API Key</label>
+                        <div class="api-key-row">
+                            <div class="key-input-wrap">
+                                <input type="password" id="api-key-input" placeholder="sk-…" autocomplete="off" spellcheck="false" aria-describedby="api-privacy-note">
+                                <button id="api-key-toggle" class="key-toggle" type="button" aria-label="显示 API Key" aria-pressed="false">显示</button>
+                            </div>
+                            <button id="ai-analyze-btn" class="action-btn ai-btn" type="button"><span aria-hidden="true">✦</span> 生成深度解读</button>
+                        </div>
+                        <p id="api-privacy-note" class="privacy-note"><span aria-hidden="true">◉</span> Key 仅用于本次请求，不会写入测评文件或浏览器存储。</p>
+                    </div>
+
+                    <div id="ai-loading" class="ai-loading" style="display: none;" role="status" aria-live="polite">
+                        <span class="loading-orbit" aria-hidden="true"></span>
+                        <div><strong>正在梳理人格线索与内在张力</strong><small>深度模式可能需要一些时间，请保持页面开启。</small></div>
+                    </div>
+
+                    <article id="ai-result-box" class="ai-result-box" style="display: none;" aria-live="polite"></article>
+
+                    <p class="analysis-disclaimer">AI 解读用于反思与对话，不能替代心理咨询、医学评估或其他专业判断。如果结果引发明显不适，建议暂停阅读并寻求可信赖的专业支持。</p>
+                </section>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <span>CAQ 双重自我评估</span>
+            <span>尊重复杂性，也尊重每一次变化</span>
+        </footer>
     </div>
-    
-    <div id="sorting-phase">
-        <h2>发牌区</h2>
-        <div id="unsorted-area" class="card-container"></div>
 
-        <h2>粗筛区 (无数量限制)</h2>
-        <div id="primary-board" class="board-container primary-board">
-            <div class="primary-column" id="primary-dislike"><div class="category-title">不符合我的</div></div>
-            <div class="primary-column" id="primary-neutral"><div class="category-title">中立 / 不确定</div></div>
-            <div class="primary-column" id="primary-like"><div class="category-title">符合我的</div></div>
-        </div>
-
-        <h2>精细分类区 (9级强制正态分布)</h2>
-        <div id="sort-board" class="board-container"></div>
-
-        <div style="text-align: center; margin: 30px 0;">
-            <button id="submit-btn" class="action-btn">进入第二阶段：设定理想自我 ➡️</button>
-        </div>
-    </div>
-
-    <div id="results-area" class="results-panel" style="display: none;">
-        <h2 style="color: #1e293b; margin-bottom: 20px;">您的 CAQ 深度剖面分析报告</h2>
-        <div class="chart-container"><canvas id="myChart"></canvas></div>
-        
-        <div class="result-box"><p><strong>✨ 真实 vs 理想自我 一致性：</strong> <span id="res-self" class="highlight-score"></span></p><p class="desc">得分越高，说明您越接纳现在的自己，内心冲突越小；反之可能暗示对现状不够满意。</p></div>
-        <div class="result-box"><p><strong>🌟 真实 vs 专家理想人格：</strong> <span id="res-ideal" class="highlight-score"></span></p><p class="desc">得分越高，说明心理健康度、社会适应能力和自我效能感越高。</p></div>
-        <div class="result-box"><p><strong>🎭 真实 vs 歇斯底里倾向：</strong> <span id="res-hys" class="highlight-score"></span></p><p class="desc">得分较高可能暗示近期情绪波动大、对他人关注的需求较高。</p></div>
-        <div class="result-box"><p><strong>🛡️ 真实 vs 偏执倾向：</strong> <span id="res-para" class="highlight-score"></span></p><p class="desc">得分较高可能暗示当前防备心较重、处于高压状态或较为敏感。</p></div>
-        
-        <button id="export-btn" class="action-btn" style="background-color: #3b82f6; margin-top: 25px;">💾 导出双重测评对比数据 (CSV)</button>
-    </div>
-
-    <div id="custom-context-menu" class="context-menu" style="display: none;"></div>
+    <div id="custom-context-menu" class="context-menu" style="display: none;" role="menu"></div>
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
     <script src="script.js"></script>
 </body>

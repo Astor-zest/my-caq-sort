@@ -31,6 +31,39 @@ window.onload = function() {
         let currentPhase = 1; 
         let realSelfScores = {}; 
         let idealSelfScores = {}; 
+        let importedIdealSelfScores = {};
+        let resultChart = null;
+
+        const toastRegion = document.getElementById('toast-region');
+        const phaseSteps = [1, 2, 3].map(step => document.getElementById(`phase-step-${step}`));
+
+        function showToast(message, type = 'info', duration = 4200) {
+            if (!toastRegion) {
+                alert(message);
+                return;
+            }
+            const toast = document.createElement('div');
+            toast.className = `toast is-${type}`;
+            toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+            toast.textContent = message;
+            toastRegion.appendChild(toast);
+            window.setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(8px)';
+                window.setTimeout(() => toast.remove(), 220);
+            }, duration);
+        }
+
+        function updatePhaseIndicator(activeStep) {
+            phaseSteps.forEach((step, index) => {
+                if (!step) return;
+                const stepNumber = index + 1;
+                step.classList.toggle('is-active', stepNumber === activeStep);
+                step.classList.toggle('is-complete', stepNumber < activeStep);
+                if (stepNumber === activeStep) step.setAttribute('aria-current', 'step');
+                else step.removeAttribute('aria-current');
+            });
+        }
 
         const categories = [
             { id: 1, name: "1级", limit: 5, desc: "极不符合 (最不像我)" },
@@ -49,23 +82,35 @@ window.onload = function() {
         
         // 关键防护：如果 HTML 没保存对，这里会直接弹窗警告
         if (!unsortedArea || !sortBoard) {
-            alert("❌ 致命错误：找不到网页的卡片框架！请务必将 index.html 里面的所有代码清空后，用我给的 HTML 重新粘贴保存一次。");
+            alert("页面初始化失败：未找到完整的卡片分类区域，请检查网页文件是否完整后重新加载。");
             return;
         }
 
         function updateCounters() {
+            let totalAssigned = 0;
             categories.forEach(cat => {
                 const col = document.getElementById(`category-${cat.id}`);
                 if(!col) return;
                 const countSpan = document.getElementById(`count-${cat.id}`);
                 const currentCount = col.querySelectorAll('.caq-card').length;
+                totalAssigned += currentCount;
                 countSpan.innerText = currentCount;
+                col.classList.toggle('is-complete', currentCount === cat.limit);
+                col.classList.toggle('is-over', currentCount > cat.limit);
                 if (currentCount === cat.limit) {
-                    countSpan.style.color = '#ef4444'; countSpan.style.fontWeight = 'bold';
+                    countSpan.style.color = '#0b8f83'; countSpan.style.fontWeight = 'bold';
                 } else {
-                    countSpan.style.color = '#475569'; countSpan.style.fontWeight = 'normal';
+                    countSpan.style.color = currentCount > cat.limit ? '#d64545' : '#69778f';
+                    countSpan.style.fontWeight = currentCount > cat.limit ? 'bold' : 'normal';
                 }
             });
+
+            const assignedTotal = document.getElementById('assigned-total');
+            const progress = document.getElementById('distribution-progress');
+            const progressFill = progress?.querySelector('.progress-fill');
+            if (assignedTotal) assignedTotal.textContent = totalAssigned;
+            if (progress) progress.setAttribute('aria-valuenow', String(totalAssigned));
+            if (progressFill) progressFill.style.width = `${Math.min(totalAssigned, 100)}%`;
         }
 
         // 构建 1-9 级容器
@@ -85,7 +130,10 @@ window.onload = function() {
             col.addEventListener('drop', (e) => {
                 e.preventDefault();
                 col.classList.remove('drag-over');
-                if (col.querySelectorAll('.caq-card').length >= cat.limit) { alert(`【${cat.name}】名额已满（最多 ${cat.limit} 张）！`); return; }
+                if (col.querySelectorAll('.caq-card').length >= cat.limit) {
+                    showToast(`【${cat.name}】已达到 ${cat.limit} 张，请先移出一张卡片。`, 'error');
+                    return;
+                }
                 const draggedCardId = e.dataTransfer.getData('text/plain');
                 if(draggedCardId) {
                     const card = document.getElementById(draggedCardId);
@@ -120,66 +168,113 @@ window.onload = function() {
             cardElement.className = 'caq-card';
             cardElement.id = `card-${item.id}`;
             cardElement.draggable = true;
+            cardElement.tabIndex = 0;
+            cardElement.setAttribute('aria-label', `卡片 ${item.id}：${item.text_cn}。按回车键打开快捷移动菜单。`);
+            cardElement.title = '拖拽、右键，或在触屏设备上轻点以移动卡片';
             cardElement.innerHTML = `<div class="id-number"># ${item.id}</div><div class="card-text">${item.text_cn}</div><div class="card-text-en">${item.text_en}</div>`;
-            cardElement.addEventListener('dragstart', (e) => { cardElement.classList.add('dragging'); e.dataTransfer.setData('text/plain', cardElement.id); });
-            cardElement.addEventListener('dragend', () => cardElement.classList.remove('dragging'));
+            cardElement.addEventListener('dragstart', (e) => {
+                cardElement.classList.add('dragging');
+                cardElement.setAttribute('aria-grabbed', 'true');
+                e.dataTransfer.setData('text/plain', cardElement.id);
+            });
+            cardElement.addEventListener('dragend', () => {
+                cardElement.classList.remove('dragging');
+                cardElement.setAttribute('aria-grabbed', 'false');
+            });
+            cardElement.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || (event.shiftKey && event.key === 'F10')) {
+                    event.preventDefault();
+                    const rect = cardElement.getBoundingClientRect();
+                    openCardMenu(cardElement, rect.left + 8, Math.min(rect.bottom + 6, window.innerHeight - 20));
+                }
+            });
+            cardElement.addEventListener('click', (event) => {
+                if (window.matchMedia('(pointer: coarse)').matches) {
+                    event.stopPropagation();
+                    const rect = cardElement.getBoundingClientRect();
+                    openCardMenu(cardElement, rect.left + 8, Math.min(rect.bottom + 6, window.innerHeight - 20));
+                }
+            });
             unsortedArea.appendChild(cardElement);
         });
+
+        updatePhaseIndicator(1);
+        updateCounters();
 
         // --- 3. 右键菜单极速分类系统 ---
         const contextMenu = document.getElementById('custom-context-menu');
         let currentTargetCard = null;
 
         if(contextMenu) {
-            document.addEventListener('click', () => { contextMenu.style.display = 'none'; });
-
+            document.addEventListener('click', event => {
+                if (!event.target.closest('.context-menu') && !event.target.closest('.caq-card')) {
+                    contextMenu.style.display = 'none';
+                }
+            });
             document.addEventListener('contextmenu', (e) => {
                 const card = e.target.closest('.caq-card');
                 if (card) {
-                    e.preventDefault(); 
-                    currentTargetCard = card;
-                    const parentId = card.parentElement.id;
-                    contextMenu.innerHTML = ''; 
-                    
-                    if (parentId === 'unsorted-area') {
-                        addMenuOption('➡️ 移至：不符合我', 'primary-dislike');
-                        addMenuOption('➡️ 移至：中立 / 不确定', 'primary-neutral');
-                        addMenuOption('➡️ 移至：符合我', 'primary-like');
-                    } else if (parentId === 'primary-dislike') {
-                        addMenuOption('➡️ 移至：1级 (极不符合)', 'category-1');
-                        addMenuOption('➡️ 移至：2级 (非常不符合)', 'category-2');
-                        addMenuOption('➡️ 移至：3级 (比较不符合)', 'category-3');
-                        addMenuOption('↩️ 退回：发牌区', 'unsorted-area');
-                    } else if (parentId === 'primary-neutral') {
-                        addMenuOption('➡️ 移至：4级 (稍微不符合)', 'category-4');
-                        addMenuOption('➡️ 移至：5级 (完全中立)', 'category-5');
-                        addMenuOption('➡️ 移至：6级 (稍微符合)', 'category-6');
-                        addMenuOption('↩️ 退回：发牌区', 'unsorted-area');
-                    } else if (parentId === 'primary-like') {
-                        addMenuOption('➡️ 移至：7级 (比较符合)', 'category-7');
-                        addMenuOption('➡️ 移至：8级 (非常符合)', 'category-8');
-                        addMenuOption('➡️ 移至：9级 (极符合)', 'category-9');
-                        addMenuOption('↩️ 退回：发牌区', 'unsorted-area');
-                    } else if (parentId.startsWith('category-')) {
-                        addMenuOption('↩️ 退回：发牌区', 'unsorted-area');
-                    } else {
-                        return;
-                    }
-
-                    contextMenu.style.left = e.pageX + 'px';
-                    contextMenu.style.top = e.pageY + 'px';
-                    contextMenu.style.display = 'block';
+                    e.preventDefault();
+                    openCardMenu(card, e.clientX, e.clientY);
                 } else {
                     contextMenu.style.display = 'none';
                 }
             });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') contextMenu.style.display = 'none';
+            });
+        }
+
+        function openCardMenu(card, clientX, clientY) {
+            if (!contextMenu || !card) return;
+            currentTargetCard = card;
+            const parentId = card.parentElement.id;
+            contextMenu.replaceChildren();
+
+            if (parentId === 'unsorted-area') {
+                addMenuOption('移至：不符合我的', 'primary-dislike');
+                addMenuOption('移至：中立 / 不确定', 'primary-neutral');
+                addMenuOption('移至：符合我的', 'primary-like');
+            } else if (parentId === 'primary-dislike') {
+                addMenuOption('移至：1级 · 极不符合', 'category-1');
+                addMenuOption('移至：2级 · 非常不符合', 'category-2');
+                addMenuOption('移至：3级 · 比较不符合', 'category-3');
+                addMenuOption('退回发牌区', 'unsorted-area');
+            } else if (parentId === 'primary-neutral') {
+                addMenuOption('移至：4级 · 稍微不符合', 'category-4');
+                addMenuOption('移至：5级 · 完全中立', 'category-5');
+                addMenuOption('移至：6级 · 稍微符合', 'category-6');
+                addMenuOption('退回发牌区', 'unsorted-area');
+            } else if (parentId === 'primary-like') {
+                addMenuOption('移至：7级 · 比较符合', 'category-7');
+                addMenuOption('移至：8级 · 非常符合', 'category-8');
+                addMenuOption('移至：9级 · 极符合', 'category-9');
+                addMenuOption('退回发牌区', 'unsorted-area');
+            } else if (parentId.startsWith('category-')) {
+                addMenuOption('退回发牌区', 'unsorted-area');
+            } else {
+                return;
+            }
+
+            contextMenu.style.display = 'block';
+            contextMenu.style.left = '0px';
+            contextMenu.style.top = '0px';
+            const menuRect = contextMenu.getBoundingClientRect();
+            const safeLeft = Math.max(8, Math.min(clientX, window.innerWidth - menuRect.width - 8));
+            const safeTop = Math.max(8, Math.min(clientY, window.innerHeight - menuRect.height - 8));
+            contextMenu.style.left = `${safeLeft}px`;
+            contextMenu.style.top = `${safeTop}px`;
+            contextMenu.querySelector('.context-menu-item')?.focus();
         }
 
         function addMenuOption(text, targetId) {
             const item = document.createElement('div');
             item.className = 'context-menu-item';
+            item.tabIndex = 0;
+            item.setAttribute('role', 'menuitem');
             item.innerText = text;
-            item.addEventListener('click', () => {
+            const moveCard = () => {
                 const targetContainer = document.getElementById(targetId);
                 if (!targetContainer) return;
                 
@@ -187,12 +282,21 @@ window.onload = function() {
                     const catId = parseInt(targetId.replace('category-', ''));
                     const cat = categories.find(c => c.id === catId);
                     if (targetContainer.querySelectorAll('.caq-card').length >= cat.limit) {
-                        alert(`【${cat.name}】名额已满（最多 ${cat.limit} 张）！\n请先移出其他卡片。`);
+                        showToast(`【${cat.name}】已达到 ${cat.limit} 张，请先移出一张卡片。`, 'error');
                         return;
                     }
                 }
                 targetContainer.appendChild(currentTargetCard);
                 updateCounters();
+                currentTargetCard?.focus();
+                contextMenu.style.display = 'none';
+            };
+            item.addEventListener('click', moveCard);
+            item.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    moveCard();
+                }
             });
             contextMenu.appendChild(item);
         }
@@ -226,22 +330,148 @@ window.onload = function() {
             if (step4 === 0) return 0;
             return step1 / step4;
         }
+        // --- CSV 导入与解析逻辑 ---
+        const importBtn = document.getElementById('import-btn');
+        const csvUpload = document.getElementById('csv-upload');
 
+        function parseCsvRow(row) {
+            const cells = [];
+            let value = '';
+            let inQuotes = false;
+            for (let i = 0; i < row.length; i++) {
+                const char = row[i];
+                if (char === '"') {
+                    if (inQuotes && row[i + 1] === '"') {
+                        value += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    cells.push(value);
+                    value = '';
+                } else {
+                    value += char;
+                }
+            }
+            cells.push(value);
+            return cells;
+        }
+
+        function hasExpectedDistribution(scoreMap) {
+            return categories.every(category => {
+                const count = Object.values(scoreMap).filter(score => score === category.id).length;
+                return count === category.limit;
+            });
+        }
+
+        if (importBtn && csvUpload) {
+            importBtn.addEventListener('click', () => {
+                if (currentPhase !== 1) {
+                    showToast('CSV 只能在“真实自我”阶段导入。', 'error');
+                    return;
+                }
+                csvUpload.click();
+            });
+
+            csvUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const text = String(event.target.result || '').replace(/^\uFEFF/, '');
+                    const lines = text.split(/\r?\n/);
+                    const importedRealScores = {};
+                    const importedIdealScores = {};
+                    const seenIds = new Set();
+
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue;
+
+                        const cells = parseCsvRow(line);
+                        const id = Number.parseInt(cells[0], 10);
+                        const realScore = Number.parseInt(cells[2], 10);
+                        const idealScore = Number.parseInt(cells[3], 10);
+                        const rowIsValid = cells.length >= 4
+                            && Number.isInteger(id) && id >= 1 && id <= 100
+                            && Number.isInteger(realScore) && realScore >= 1 && realScore <= 9
+                            && Number.isInteger(idealScore) && idealScore >= 1 && idealScore <= 9
+                            && !seenIds.has(id);
+
+                        if (!rowIsValid) continue;
+                        seenIds.add(id);
+                        importedRealScores[id] = realScore;
+                        importedIdealScores[id] = idealScore;
+                    }
+
+                    const isComplete = seenIds.size === 100
+                        && hasExpectedDistribution(importedRealScores)
+                        && hasExpectedDistribution(importedIdealScores);
+
+                    if (isComplete) {
+                        for (let id = 1; id <= 100; id++) {
+                            const card = document.getElementById(`card-${id}`);
+                            const realCol = document.getElementById(`category-${importedRealScores[id]}`);
+                            if (card && realCol) realCol.appendChild(card);
+                        }
+                        importedIdealSelfScores = importedIdealScores;
+                        updateCounters();
+                        showToast('已恢复 100 张卡片的真实自我与理想自我位置，可以继续微调。', 'success', 5200);
+                    } else {
+                        importedIdealSelfScores = {};
+                        showToast('未能导入：请使用本工具导出的完整 CSV，并确认两组评分都符合规定分布。', 'error', 6200);
+                    }
+                    csvUpload.value = '';
+                };
+                reader.onerror = () => {
+                    showToast('文件读取失败，请重新选择 CSV 文件。', 'error');
+                    csvUpload.value = '';
+                };
+                reader.readAsText(file, 'UTF-8');
+            });
+        }
         const submitBtn = document.getElementById('submit-btn');
         if(submitBtn) {
             submitBtn.addEventListener('click', () => {
-                if (!isSortComplete()) { alert('请将全部 100 张卡片分配完毕后再继续！'); return; }
+                if (!isSortComplete()) {
+                    showToast('请先将全部 100 张卡片放入 1–9 级精细分类区。', 'error');
+                    return;
+                }
 
                 if (currentPhase === 1) {
                     saveScoresTo(realSelfScores);
-                    const allCards = document.querySelectorAll('.caq-card');
-                    allCards.forEach(card => unsortedArea.appendChild(card));
+                    
+                    // 检查是否有导入的【理想自我】数据
+                    const hasImportedIdeal = Object.keys(importedIdealSelfScores).length === 100;
+
+                    if (hasImportedIdeal) {
+                        // 如果有导入记录，直接按历史“理想状态”还原卡片位置
+                        for (let i = 1; i <= 100; i++) {
+                            const targetScore = importedIdealSelfScores[i];
+                            const card = document.getElementById(`card-${i}`);
+                            const col = document.getElementById(`category-${targetScore}`);
+                            if (card && col) col.appendChild(card);
+                        }
+                    } else {
+                        // 如果没有导入记录，所有卡片退回发牌区
+                        const allCards = document.querySelectorAll('.caq-card');
+                        allCards.forEach(card => unsortedArea.appendChild(card));
+                    }
                     updateCounters();
 
                     document.getElementById('main-title').innerText = "第二阶段：理想的自我";
-                    document.getElementById('main-title').style.color = "#10b981"; 
-                    document.getElementById('main-desc').innerHTML = "请抛开现实限制，根据您<strong>内心期望成为的理想样子</strong>，再次将这100张卡片分配到1-9级中。";
-                    submitBtn.innerText = "📊 提交并生成最终双重对比折线报告";
+                    document.getElementById('main-title').style.color = "#7ee2d1";
+                    document.getElementById('main-desc').innerHTML = "请暂时放下现实限制，根据您<strong>真正期待成为的样子</strong>重新审视卡片。若已导入历史数据，可以直接在原有理想自我分布上微调。";
+                    
+                    // 隐藏导入按钮
+                    const importContainer = document.getElementById('import-container');
+                    if (importContainer) importContainer.style.display = 'none';
+
+                    submitBtn.innerHTML = "生成双重自我报告 <span aria-hidden=\"true\">→</span>";
+                    updatePhaseIndicator(2);
+                    showToast('已保存真实自我分布，现在请完成理想自我分类。', 'success');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     currentPhase = 2; 
 
@@ -269,23 +499,52 @@ window.onload = function() {
                     
                     document.getElementById('sorting-phase').style.display = 'none'; 
                     document.getElementById('results-area').style.display = 'block'; 
+                    document.getElementById('main-title').innerText = '评估完成：双重自我报告';
+                    document.getElementById('main-title').style.color = '#ffffff';
+                    document.getElementById('main-desc').innerHTML = '您已完成真实自我与理想自我的双重排序。下面的结果用于观察<strong>人格结构、内在张力与成长方向</strong>。';
+                    updatePhaseIndicator(3);
                     
                     const canvas = document.getElementById('myChart');
-                    if(canvas) {
-                        new Chart(canvas.getContext('2d'), {
-                            type: 'line',
+                    if(canvas && typeof Chart !== 'undefined') {
+                        if (resultChart) resultChart.destroy();
+                        resultChart = new Chart(canvas.getContext('2d'), {
+                            type: 'bar',
                             data: {
-                                labels: ['个人理想自我', '专家理想人格(1995)', '歇斯底里倾向', '偏执倾向'],
+                                labels: ['个人理想自我', '专家理想人格（1995）', '歇斯底里参照剖面', '偏执参照剖面'],
                                 datasets: [{
-                                    label: '真实自我与各维度的相关系数 (Pearson r)',
+                                    label: '与真实自我的相关系数',
                                     data: [r_self, r_expert, r_hys, r_para],
-                                    borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.15)', borderWidth: 3, pointBackgroundColor: '#10b981', pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 6, pointHoverRadius: 8, fill: true, tension: 0.3 
+                                    backgroundColor: ['rgba(53, 106, 230, 0.78)', 'rgba(11, 143, 131, 0.78)', 'rgba(197, 120, 24, 0.72)', 'rgba(118, 86, 214, 0.72)'],
+                                    borderColor: ['#356ae6', '#0b8f83', '#c57818', '#7656d6'],
+                                    borderWidth: 1,
+                                    borderRadius: 7,
+                                    barThickness: 34
                                 }]
                             },
-                            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: -1.0, max: 1.0, title: { display: true, text: '相关系数 (r)' }, grid: { color: '#e2e8f0' } }, x: { grid: { display: false } } }, plugins: { legend: { labels: { font: { size: 14 } } } } }
+                            options: {
+                                indexAxis: 'y',
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    x: {
+                                        min: -1,
+                                        max: 1,
+                                        ticks: { color: '#69778f', stepSize: 0.25 },
+                                        grid: { color: '#e3e7ee' },
+                                        title: { display: true, text: 'Pearson r', color: '#69778f' }
+                                    },
+                                    y: { grid: { display: false }, ticks: { color: '#34425c', font: { size: 12, weight: '600' } } }
+                                },
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { callbacks: { label: context => ` r = ${Number(context.raw).toFixed(2)}` } }
+                                }
+                            }
                         });
+                    } else {
+                        showToast('图表组件未能加载，但下方分数与 AI 解读仍可正常使用。', 'error');
                     }
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    document.getElementById('results-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             });
         }
@@ -293,12 +552,296 @@ window.onload = function() {
         const exportBtn = document.getElementById('export-btn');
         if(exportBtn) {
             exportBtn.addEventListener('click', () => {
-                let csvContent = "data:text/csv;charset=utf-8,\uFEFF卡片序号,卡片描述(中),真实自我评分(1-9),理想自我评分(1-9)\n";
-                caqData.forEach(item => { csvContent += `${item.id},"${item.text_cn}",${realSelfScores[item.id]},${idealSelfScores[item.id]}\n`; });
-                const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", "双重CAQ测评数据.csv"); document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                const escapeCsvCell = value => `"${String(value).replace(/"/g, '""')}"`;
+                const padTimePart = (value, length = 2) => String(value).padStart(length, '0');
+                const generatedDate = new Date();
+                const offsetMinutes = -generatedDate.getTimezoneOffset();
+                const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+                const absoluteOffset = Math.abs(offsetMinutes);
+                const offsetText = `${offsetSign}${padTimePart(Math.floor(absoluteOffset / 60))}:${padTimePart(absoluteOffset % 60)}`;
+                const datePart = `${generatedDate.getFullYear()}-${padTimePart(generatedDate.getMonth() + 1)}-${padTimePart(generatedDate.getDate())}`;
+                const timePart = `${padTimePart(generatedDate.getHours())}:${padTimePart(generatedDate.getMinutes())}:${padTimePart(generatedDate.getSeconds())}.${padTimePart(generatedDate.getMilliseconds(), 3)}`;
+                const generatedAt = `${datePart}T${timePart}${offsetText}`;
+                const fileTimePart = `${padTimePart(generatedDate.getHours())}-${padTimePart(generatedDate.getMinutes())}-${padTimePart(generatedDate.getSeconds())}`;
+
+                const rows = ['卡片序号,卡片描述(中),真实自我评分(1-9),理想自我评分(1-9),测评生成时间(ISO 8601)'];
+                caqData.forEach(item => {
+                    rows.push(`${item.id},${escapeCsvCell(item.text_cn)},${realSelfScores[item.id]},${idealSelfScores[item.id]},${escapeCsvCell(generatedAt)}`);
+                });
+                const blob = new Blob([`\uFEFF${rows.join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+                const downloadUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = `CAQ双重测评_${datePart}_${fileTimePart}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+                showToast(`测评存档已生成，并记录时间：${generatedAt}`, 'success', 5200);
+            });
+        }
+        // --- 5. AI 个性化分析 (DeepSeek) ---
+        const aiAnalyzeBtn = document.getElementById('ai-analyze-btn');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const apiKeyToggle = document.getElementById('api-key-toggle');
+        const aiModelSelect = document.getElementById('ai-model-select');
+        const aiLoading = document.getElementById('ai-loading');
+        const aiResultBox = document.getElementById('ai-result-box');
+
+        function appendInlineMarkdown(parent, text) {
+            const strongPattern = /\*\*(.+?)\*\*/g;
+            let cursor = 0;
+            let match;
+            while ((match = strongPattern.exec(text)) !== null) {
+                if (match.index > cursor) parent.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+                const strong = document.createElement('strong');
+                strong.textContent = match[1];
+                parent.appendChild(strong);
+                cursor = match.index + match[0].length;
+            }
+            if (cursor < text.length) parent.appendChild(document.createTextNode(text.slice(cursor)));
+        }
+
+        function renderMarkdownSafely(markdown, container) {
+            container.replaceChildren();
+            const lines = String(markdown || '').replace(/\r/g, '').split('\n');
+            let activeList = null;
+            let activeListType = null;
+
+            const closeList = () => {
+                activeList = null;
+                activeListType = null;
+            };
+
+            lines.forEach(rawLine => {
+                const line = rawLine.trim();
+                if (!line) {
+                    closeList();
+                    return;
+                }
+
+                const headingMatch = line.match(/^(#{2,3})\s+(.+)$/);
+                if (headingMatch) {
+                    closeList();
+                    const heading = document.createElement(headingMatch[1].length === 2 ? 'h2' : 'h3');
+                    appendInlineMarkdown(heading, headingMatch[2]);
+                    container.appendChild(heading);
+                    return;
+                }
+
+                const unorderedMatch = line.match(/^[-*]\s+(.+)$/);
+                const orderedMatch = line.match(/^\d+[.)]\s+(.+)$/);
+                if (unorderedMatch || orderedMatch) {
+                    const listType = unorderedMatch ? 'ul' : 'ol';
+                    if (!activeList || activeListType !== listType) {
+                        activeList = document.createElement(listType);
+                        activeListType = listType;
+                        container.appendChild(activeList);
+                    }
+                    const item = document.createElement('li');
+                    appendInlineMarkdown(item, (unorderedMatch || orderedMatch)[1]);
+                    activeList.appendChild(item);
+                    return;
+                }
+
+                closeList();
+                if (line.startsWith('> ')) {
+                    const quote = document.createElement('blockquote');
+                    appendInlineMarkdown(quote, line.slice(2));
+                    container.appendChild(quote);
+                    return;
+                }
+
+                const paragraph = document.createElement('p');
+                appendInlineMarkdown(paragraph, line);
+                container.appendChild(paragraph);
+            });
+        }
+
+        function buildTraitEvidence() {
+            const profiles = caqData.map(item => {
+                const real = Number(realSelfScores[item.id]);
+                const ideal = Number(idealSelfScores[item.id]);
+                return { ...item, real, ideal, gap: ideal - real };
+            });
+
+            const formatTrait = item => `- #${item.id}｜真实 ${item.real}，理想 ${item.ideal}｜${item.text_cn}`;
+            const formatList = items => items.length ? items.map(formatTrait).join('\n') : '- 无达到条件的条目';
+
+            const highTraits = profiles.filter(item => item.real >= 8).sort((a, b) => b.real - a.real || a.id - b.id);
+            const lowTraits = profiles.filter(item => item.real <= 2).sort((a, b) => a.real - b.real || a.id - b.id);
+            const growthPriorities = profiles.filter(item => item.gap >= 2).sort((a, b) => b.gap - a.gap || b.ideal - a.ideal).slice(0, 10);
+            const reductionPriorities = profiles.filter(item => item.gap <= -2).sort((a, b) => a.gap - b.gap || b.real - a.real).slice(0, 10);
+            const stableCores = profiles.filter(item => item.real >= 7 && Math.abs(item.gap) <= 1).sort((a, b) => b.real - a.real).slice(0, 10);
+
+            return {
+                highTraits: formatList(highTraits),
+                lowTraits: formatList(lowTraits),
+                growthPriorities: formatList(growthPriorities),
+                reductionPriorities: formatList(reductionPriorities),
+                stableCores: formatList(stableCores)
+            };
+        }
+
+        function getApiErrorMessage(status, apiMessage) {
+            if (status === 401) return 'API Key 无效或已失效，请检查后重试。';
+            if (status === 402) return '当前 API 账户余额不足，请在 DeepSeek 控制台检查账户状态。';
+            if (status === 429) return '请求过于频繁，请稍候片刻再试。';
+            if (status >= 500) return 'DeepSeek 服务暂时不可用，请稍后重试。';
+            return apiMessage || `请求失败（HTTP ${status}）。`;
+        }
+
+        if (apiKeyToggle && apiKeyInput) {
+            apiKeyToggle.addEventListener('click', () => {
+                const shouldShow = apiKeyInput.type === 'password';
+                apiKeyInput.type = shouldShow ? 'text' : 'password';
+                apiKeyToggle.textContent = shouldShow ? '隐藏' : '显示';
+                apiKeyToggle.setAttribute('aria-label', shouldShow ? '隐藏 API Key' : '显示 API Key');
+                apiKeyToggle.setAttribute('aria-pressed', String(shouldShow));
+            });
+        }
+
+        if(aiAnalyzeBtn) {
+            aiAnalyzeBtn.addEventListener('click', async () => {
+                const apiKey = apiKeyInput.value.trim();
+                if (!apiKey) {
+                    showToast('请先输入 DeepSeek API Key。', 'error');
+                    apiKeyInput.focus();
+                    return;
+                }
+
+                // 1. 收集图表上的相关系数得分
+                const r_self = document.getElementById('res-self').innerText;
+                const r_expert = document.getElementById('res-ideal').innerText;
+                const r_hys = document.getElementById('res-hys').innerText;
+                const r_para = document.getElementById('res-para').innerText;
+
+                // 2. 汇总极端特质、稳定核心与真实—理想差距
+                const evidence = buildTraitEvidence();
+
+                // 3. 构建给大模型的 Prompt
+                const systemPrompt = `你是一名熟悉加州成人 Q 分类（California Adult Q-Sort, CAQ）、人格心理学与人本主义咨询表达的结果解读助手。你的任务是帮助用户形成可检验的自我理解，而不是给出临床诊断。
+
+必须遵守以下原则：
+1. Q 分类是固定分布的个体内相对排序。高低分表示某项特质在本次自我描述中的相对突出程度，不等于绝对强弱、好坏或疾病指标。
+2. Pearson 相关系数只表示两个完整人格剖面的结构相似度。不得把单一相关值直接称为“健康分”“患病概率”或诊断结论；没有常模依据时不得擅自划定高、中、低阈值。
+3. 区分“数据直接显示”“综合推测”和“需要结合生活情境验证”。推测必须使用“可能、或许、值得观察”等审慎措辞。
+4. 优先寻找多条数据相互印证的模式，也要主动指出高低特质、相关系数及真实—理想差距之间的矛盾或张力，不做单线条人格标签。
+5. 不虚构成长经历、家庭关系、职业、创伤、病史或现实事件；不使用宿命化、羞辱性、夸张或制造恐惧的语言。
+6. 报告要具体、有洞察力且温暖克制。每个重要判断尽量附 1–3 个题号、分数或相关系数作为证据。`;
+
+                const userPrompt = `请依据以下 CAQ 数据，生成一份供本人自我反思的深度解读。
+
+【剖面相关数据｜Pearson r，范围 -1 至 1】
+- 真实自我 vs 个人理想自我：${r_self}
+- 真实自我 vs 专家理想人格（1995）参照剖面：${r_expert}
+- 真实自我 vs 歇斯底里参照剖面：${r_hys}
+- 真实自我 vs 偏执参照剖面：${r_para}
+
+【当前最突出的特质｜真实自我 8–9 级】
+${evidence.highTraits}
+
+【当前最不突出的特质｜真实自我 1–2 级】
+${evidence.lowTraits}
+
+【稳定核心｜真实自我较高，且理想分与真实分接近】
+${evidence.stableCores}
+
+【希望增强的方向｜理想分至少比真实分高 2 级，按差距排序】
+${evidence.growthPriorities}
+
+【希望降低的方向｜真实分至少比理想分高 2 级，按差距排序】
+${evidence.reductionPriorities}
+
+【写作任务】
+全文约 1400–1800 个中文字符。直接进入报告，不要写“好的”“感谢分享”“以下是报告”等开场，不要使用表情符号，不要复述全部数据。必须且只能使用以下三个二级标题：
+
+## 【一、性格核心画像】
+- 从核心驱力、自我认同、信息加工与行动风格、情绪调节、人际关系五个角度整合解读。
+- 同时写出优势与同一特质在压力下可能付出的代价；识别至少一组看似矛盾但可以并存的特质。
+- 关键判断使用“（依据：#题号 真实分；#题号 真实分）”简短标注证据，不要机械罗列。
+
+## 【二、心理状态与内在张力】
+- 将四个相关系数与真实—理想差距结合解释，重点讨论自我一致、成长愿望、可能的压力点与保护性资源。
+- 对“歇斯底里/偏执”只称为参照剖面相似度，明确其不能用于诊断；不要把负相关自动解释成绝对积极。
+- 提出 2–3 个最值得本人结合现实情境核对的问题。问题要具体，避免泛泛而谈。
+
+## 【三、自我成长建议】
+- 给出恰好 3 项优先级明确的“成长实验”，分别对应最关键的张力。
+- 每项都用加粗小标题，并包含：目标、一个可在一周内执行的微行动、可观察信号、复盘问题。
+- 建议必须来自本次数据，不给通用鸡汤，不要求用户改变稳定且认同的核心特质。
+- 最后一段用两句话说明：本报告是基于一次自我排序的探索性解释，会随情境与时间变化，不能替代专业评估。`;
+
+                // 4. UI 状态切换
+                aiAnalyzeBtn.disabled = true;
+                const originalButtonContent = aiAnalyzeBtn.innerHTML;
+                aiAnalyzeBtn.innerHTML = '<span aria-hidden="true">✦</span> 正在分析…';
+                aiLoading.style.display = 'flex';
+                aiResultBox.style.display = 'none';
+                aiResultBox.setAttribute('aria-busy', 'true');
+
+                const controller = new AbortController();
+                const timeoutId = window.setTimeout(() => controller.abort(), 180000);
+
+                try {
+                    const selectedModel = aiModelSelect?.value || 'deepseek-v4-pro';
+                    const response = await fetch('https://api.deepseek.com/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: selectedModel,
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: userPrompt }
+                            ],
+                            thinking: { type: selectedModel === 'deepseek-v4-pro' ? 'enabled' : 'disabled' },
+                            temperature: 0.45,
+                            max_tokens: 6000
+                        }),
+                        signal: controller.signal
+                    });
+
+                    if (!response.ok) {
+                        let errorData = {};
+                        try { errorData = await response.json(); } catch (_) { /* 响应可能不是 JSON */ }
+                        throw new Error(getApiErrorMessage(response.status, errorData.error?.message));
+                    }
+
+                    const data = await response.json();
+                    const choice = data.choices?.[0];
+                    const aiText = choice?.message?.content?.trim();
+                    if (!aiText) throw new Error('模型没有返回可显示的分析内容，请重试。');
+
+                    renderMarkdownSafely(aiText, aiResultBox);
+                    aiResultBox.style.display = 'block';
+                    if (choice.finish_reason === 'length') {
+                        showToast('本次分析达到输出上限，结尾可能不完整；可切换深度模式后重试。', 'info', 6000);
+                    }
+                    aiResultBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                } catch (error) {
+                    let errorMessage;
+                    if (error.name === 'AbortError') {
+                        errorMessage = '分析请求超时，请检查网络后重试。';
+                    } else if (error instanceof TypeError) {
+                        errorMessage = '无法连接 DeepSeek API，请检查网络连接或浏览器的跨域访问限制。';
+                    } else {
+                        errorMessage = `分析失败：${error.message}`;
+                    }
+                    showToast(errorMessage, 'error', 6500);
+                } finally {
+                    window.clearTimeout(timeoutId);
+                    aiAnalyzeBtn.disabled = false;
+                    aiAnalyzeBtn.innerHTML = originalButtonContent;
+                    aiLoading.style.display = 'none';
+                    aiResultBox.setAttribute('aria-busy', 'false');
+                }
             });
         }
     } catch (error) {
-        alert("❌ 代码运行遇到了错误：" + error.message + "\n如果一直弹这个框，请检查复制是否漏了内容。");
+        alert("页面运行遇到问题：" + error.message + "\n请重新加载页面；若问题持续，请检查三个网页文件是否完整。");
     }
 };
